@@ -178,24 +178,45 @@ else:
     # ==============================
     # COLLAPSIBLE + TABS
     # ==============================
-    with st.expander("", expanded=True):
+   section = st.session_state.selected_section
 
-        tab1, tab2 = st.tabs(["✅ Benchmarks Met", "⚠️ Areas of Improvement"])
+st.markdown(
+    f'<div class="main-title-card"><h1>{section} - Details</h1></div>',
+    unsafe_allow_html=True
+)
 
-        with tab1:
-            if correct_list:
-                for q in correct_list:
-                    st.write(f"✅ {q}")
-            else:
-                st.write("No benchmarks met")
+data = get_df()
+cols = sections[section]
 
-        with tab2:
-            if wrong_list:
-                for q in wrong_list:
-                    st.write(f"⚠️ {q}")
-            else:
-                st.write("No improvements needed 🎉")
+correct_list, wrong_list = [], []
 
-    # BACK BUTTON
-    if st.button("⬅️ Back"):
-        st.session_state.selected_section = None
+for col in cols:
+    if col in data.columns and col in mature_map:
+        expected = mature_map[col]
+        if (data[col] == expected).all():
+            correct_list.append(col)
+        else:
+            wrong_list.append(col)
+
+# ==============================
+# ONLY TABS (NO EXPANDER)
+# ==============================
+tab1, tab2 = st.tabs(["✅ Benchmarks Met", "⚠️ Areas of Improvement"])
+
+with tab1:
+    if correct_list:
+        for q in correct_list:
+            st.write(f"✅ {q}")
+    else:
+        st.write("No benchmarks met")
+
+with tab2:
+    if wrong_list:
+        for q in wrong_list:
+            st.write(f"⚠️ {q}")
+    else:
+        st.write("No improvements needed 🎉")
+
+# BACK BUTTON
+if st.button("⬅️ Back"):
+    st.session_state.selected_section = None
