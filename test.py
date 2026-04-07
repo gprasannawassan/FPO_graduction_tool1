@@ -158,7 +158,7 @@ else:
     section = st.session_state.selected_section
 
     st.markdown(
-        f'<div class="main-title-card"><h1>{section} - Details</h1></div>',
+        f'<div class="main-title-card"><h1>{section}</h1></div>',
         unsafe_allow_html=True
     )
 
