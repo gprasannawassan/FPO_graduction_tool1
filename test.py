@@ -178,7 +178,7 @@ else:
     # ==============================
     # COLLAPSIBLE + TABS
     # ==============================
-    with st.expander("📊 View Section Details", expanded=True):
+    with st.expander("", expanded=True):
 
         tab1, tab2 = st.tabs(["✅ Benchmarks Met", "⚠️ Areas of Improvement"])
 
