@@ -8,7 +8,7 @@ st.set_page_config(layout="wide")
 # ==============================
 st.markdown("""
 <style>
-.main-title-card {background-color:#0073e6;padding:3px;border-radius:4px;margin-bottom:8px;}
+.main-title-card {background-color:#0073e6;padding:6px;border-radius:6px;margin-bottom:10px;}
 .main-title-card h1 {color:white;font-size:22px;font-weight:bold;margin:0;}
 
 .section-card {background-color:#f0f8ff;padding:15px;border-radius:12px;text-align:center;margin-bottom:10px;}
@@ -42,21 +42,21 @@ rules_df.columns = rules_df.columns.str.strip().str.lower()
 # ==============================
 def mature_to_binary(val):
     val = str(val).strip().lower()
-    if val in ["yes","y","1"]: return 1
-    if val in ["no","n","0"]: return 0
+    if val in ["yes", "y", "1"]: return 1
+    if val in ["no", "n", "0"]: return 0
     return None
 
 def maturity_label(p):
-    if p < 50: return "Nascent","red"
-    elif p < 80: return "Somewhat Mature","orange"
-    elif p < 100: return "Near Mature","lightgreen"
-    else: return "Mature","green"
+    if p < 50: return "Nascent", "red"
+    elif p < 80: return "Somewhat Mature", "orange"
+    elif p < 100: return "Near Mature", "lightgreen"
+    else: return "Mature", "green"
 
 # ==============================
 # MATURE MAP
 # ==============================
 mature_map = {
-    str(mature_df.iloc[i,0]).strip().lower(): mature_to_binary(mature_df.iloc[i,1])
+    str(mature_df.iloc[i, 0]).strip().lower(): mature_to_binary(mature_df.iloc[i, 1])
     for i in range(len(mature_df))
 }
 
@@ -80,16 +80,16 @@ def calculate_score(df, cols):
 # SECTIONS
 # ==============================
 sections = {
-    "FPO Registration":[col for col in df.columns if "fpo_registration-" in col],
-    "Membership":[col for col in df.columns if "fpo_membership-" in col],
-    "Governance":[col for col in df.columns if "strength_governanace" in col],
-    "FPO Staff":[col for col in df.columns if "fpo_staff_details" in col],
-    "Compliance":[col for col in df.columns if "licences_certificates" in col],
-    "Assets":[col for col in df.columns if "assets_owned" in col or "asset_register" in col],
-    "Accounts":[col for col in df.columns if "records_maintained" in col or "financial_compliance" in col],
-    "Business":[col for col in df.columns if "business_lines" in col],
-    "Market":[col for col in df.columns if "market_linkages" in col],
-    "Processes":[col for col in df.columns if "business_processes" in col]
+    "FPO Registration": [col for col in df.columns if "fpo_registration-" in col],
+    "Membership": [col for col in df.columns if "fpo_membership-" in col],
+    "Governance": [col for col in df.columns if "strength_governanace" in col],
+    "FPO Staff": [col for col in df.columns if "fpo_staff_details" in col],
+    "Compliance": [col for col in df.columns if "licences_certificates" in col],
+    "Assets": [col for col in df.columns if "assets_owned" in col or "asset_register" in col],
+    "Accounts": [col for col in df.columns if "records_maintained" in col or "financial_compliance" in col],
+    "Business": [col for col in df.columns if "business_lines" in col],
+    "Market": [col for col in df.columns if "market_linkages" in col],
+    "Processes": [col for col in df.columns if "business_processes" in col]
 }
 
 # ==============================
@@ -97,6 +97,7 @@ sections = {
 # ==============================
 if "selected_section" not in st.session_state:
     st.session_state.selected_section = None
+
 if "selected_fpo" not in st.session_state:
     st.session_state.selected_fpo = ""
 
@@ -123,10 +124,10 @@ if st.session_state.selected_section is None:
     cols_ui = st.columns(5)
     scores = []
 
-    for i,(section,cols) in enumerate(sections.items()):
-        correct,total,percent = calculate_score(data, cols)
+    for i, (section, cols) in enumerate(sections.items()):
+        correct, total, percent = calculate_score(data, cols)
         scores.append(percent)
-        label,color = maturity_label(percent)
+        label, color = maturity_label(percent)
 
         with cols_ui[i % 5]:
             st.markdown(f"""
@@ -143,24 +144,29 @@ if st.session_state.selected_section is None:
             if st.button("View details", key=f"view_{section}"):
                 st.session_state.selected_section = section
 
-    overall = int(sum(scores)/len(scores))
+    overall = int(sum(scores) / len(scores))
     st.markdown(f"""
     <div class="overall-card">
-    Overall Maturity : {overall}%
+        Overall Maturity : {overall}%
     </div>
     """, unsafe_allow_html=True)
 
 # ==============================
-# DETAIL PAGE (UPDATED)
+# DETAIL PAGE
 # ==============================
 else:
     section = st.session_state.selected_section
-    st.markdown(f'<div class="main-title-card"><h1>{section}</h1></div>', unsafe_allow_html=True)
+
+    st.markdown(
+        f'<div class="main-title-card"><h1>{section} - Details</h1></div>',
+        unsafe_allow_html=True
+    )
 
     data = get_df()
     cols = sections[section]
 
     correct_list, wrong_list = [], []
+
     for col in cols:
         if col in data.columns and col in mature_map:
             expected = mature_map[col]
@@ -169,25 +175,26 @@ else:
             else:
                 wrong_list.append(col)
 
-    # ==========================
-    # ONLY TWO SECTIONS
-    # ==========================
+    # ==============================
+    # COLLAPSIBLE + TABS
+    # ==============================
+    with st.expander("📊 View Section Details", expanded=True):
 
-    st.markdown("## Benchmarks Met")
-    if correct_list:
-        for q in correct_list:
-            st.write(f"✅ {q}")
-    else:
-        st.write("No benchmarks met")
+        tab1, tab2 = st.tabs(["✅ Benchmarks Met", "⚠️ Areas of Improvement"])
 
-    st.markdown("---")
+        with tab1:
+            if correct_list:
+                for q in correct_list:
+                    st.write(f"✅ {q}")
+            else:
+                st.write("No benchmarks met")
 
-    st.markdown("## Areas of Improvement")
-    if wrong_list:
-        for q in wrong_list:
-            st.write(f"⚠️ {q}")
-    else:
-        st.write("No improvements needed 🎉")
+        with tab2:
+            if wrong_list:
+                for q in wrong_list:
+                    st.write(f"⚠️ {q}")
+            else:
+                st.write("No improvements needed 🎉")
 
     # BACK BUTTON
     if st.button("⬅️ Back"):
