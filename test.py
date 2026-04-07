@@ -1,155 +1,95 @@
 import streamlit as st
 import pandas as pd
-from datetime import date
 
 st.set_page_config(layout="wide")
 
 # ==============================
-# HEADER
+# CSS
 # ==============================
-def show_header():
-    st.markdown("""
-    <div style="
-        background:#0073e6;
-        padding:6px 15px;
-        border-radius:8px;
-        margin-bottom:10px;
-        display:flex;
-        align-items:center;
-        height:50px;">
-        <h3 style="color:white;margin:0;">
-            SERP-AP FPO Graduation Tool
-        </h3>
-    </div>
-    """, unsafe_allow_html=True)
+st.markdown("""
+<style>
+.main-title-card {background-color:#0073e6;padding:3px;border-radius:4px;margin-bottom:8px;}
+.main-title-card h1 {color:white;font-size:22px;font-weight:bold;margin:0;}
+
+.section-card {background-color:#f0f8ff;padding:15px;border-radius:12px;text-align:center;margin-bottom:10px;}
+.section-title {font-size:16px;font-weight:bold;}
+.section-score {font-size:20px;font-weight:bold;}
+.section-percent {font-size:18px;font-weight:bold;}
+
+.progress-container {width:100%;background-color:#ddd;border-radius:8px;margin-top:8px;}
+.progress-bar {height:10px;border-radius:8px;}
+
+.overall-card {background-color:#f0f8ff;padding:20px;border-radius:12px;text-align:center;font-size:22px;font-weight:bold;margin-top:30px;}
+</style>
+""", unsafe_allow_html=True)
 
 # ==============================
 # LOAD DATA
 # ==============================
 mapped_file = "final_mapped_output.xlsx"
-rules_file = "FPO_Dashboard.xlsx"
+mature_file = "FPO_Dashboard.xlsx"
 
 df = pd.read_excel(mapped_file)
-rules_df = pd.read_excel(rules_file, sheet_name="Rules")
-rules_dff = pd.read_excel(rules_file, sheet_name="label mapping")
-mature_df = pd.read_excel(rules_file, sheet_name="Mature")
+mature_df = pd.read_excel(mature_file, sheet_name="Mature")
+rules_df = pd.read_excel(mature_file, sheet_name="Rules")
 
-# ==============================
-# CLEAN COLUMNS
-# ==============================
 df.columns = df.columns.str.strip().str.lower()
-rules_df.columns = rules_df.columns.str.strip().str.lower()
-rules_dff.columns = rules_dff.columns.str.strip().str.lower()
 mature_df.columns = mature_df.columns.str.strip().str.lower()
+rules_df.columns = rules_df.columns.str.strip().str.lower()
 
 # ==============================
-# SAFE VALUE CONVERTER
+# FUNCTIONS
 # ==============================
-def safe_binary(val):
-    if pd.isna(val):
-        return None
-    try:
-        return int(float(val))
-    except:
-        val = str(val).strip().lower()
-        if val in ["yes", "y"]:
-            return 1
-        if val in ["no", "n"]:
-            return 0
+def mature_to_binary(val):
+    val = str(val).strip().lower()
+    if val in ["yes","y","1"]: return 1
+    if val in ["no","n","0"]: return 0
     return None
+
+def maturity_label(p):
+    if p < 50: return "Nascent","red"
+    elif p < 80: return "Somewhat Mature","orange"
+    elif p < 100: return "Near Mature","lightgreen"
+    else: return "Mature","green"
 
 # ==============================
 # MATURE MAP
 # ==============================
 mature_map = {
-    str(mature_df.iloc[i, 0]).strip().lower(): safe_binary(mature_df.iloc[i, 1])
+    str(mature_df.iloc[i,0]).strip().lower(): mature_to_binary(mature_df.iloc[i,1])
     for i in range(len(mature_df))
 }
 
 # ==============================
-# LABEL MAP
+# SCORE FUNCTION
 # ==============================
-rules_dff["indicator"] = rules_dff["indicator"].astype(str).str.strip().str.lower()
-label_map = rules_dff.groupby("indicator").first().to_dict("index")
-
-def get_label(col):
-    return label_map.get(str(col).strip().lower(), {})
-
-# ==============================
-# MATURITY LABEL
-# ==============================
-def maturity_label(p):
-    if p < 50:
-        return "Nascent", "red"
-    elif p < 80:
-        return "Somewhat Mature", "orange"
-    elif p < 100:
-        return "Near Mature", "lightgreen"
-    else:
-        return "Mature", "green"
-
-# ==============================
-# SCORE CALCULATION (UPDATED FOR AGGREGATE)
-# ==============================
-def calculate_score(df_filtered, cols, aggregate=False):
+def calculate_score(df, cols):
     total = 0
     correct = 0
-
-    if df_filtered.empty:
-        return 0, 0, 0
-
-    # 👉 OVERALL MODE
-    if aggregate:
-        for _, row in df_filtered.iterrows():
-            for col in cols:
-                if col not in df_filtered.columns or col == "fpo_registration-fpo_name":
-                    continue
-
-                actual = safe_binary(row[col])
-                expected = 1 if col.startswith("fpo_registration-") else safe_binary(mature_map.get(col))
-
-                if actual is None or expected is None:
-                    continue
-
-                total += 1
-                if actual == expected:
-                    correct += 1
-
-    # 👉 SINGLE FPO MODE
-    else:
-        row = df_filtered.iloc[0]
-
-        for col in cols:
-            if col not in df_filtered.columns or col == "fpo_registration-fpo_name":
+    for col in cols:
+        if col in df.columns and col in mature_map:
+            if col == "fpo_registration-fpo_name":
                 continue
-
-            actual = safe_binary(row[col])
-            expected = 1 if col.startswith("fpo_registration-") else safe_binary(mature_map.get(col))
-
-            if actual is None or expected is None:
-                continue
-
-            total += 1
-            if actual == expected:
-                correct += 1
-
+            expected = mature_map[col]
+            correct += (df[col] == expected).sum()
+            total += len(df[col])
     percent = int((correct / total) * 100) if total else 0
     return correct, total, percent
 
 # ==============================
-# SECTION GROUPING
+# SECTIONS
 # ==============================
 sections = {
-    "FPO Registration": [c for c in df.columns if "fpo_registration-" in c],
-    "Membership": [c for c in df.columns if "fpo_membership-" in c],
-    "Governance": [c for c in df.columns if "strength_governanace" in c],
-    "FPO Staff": [c for c in df.columns if "fpo_staff_details" in c],
-    "Compliance": [c for c in df.columns if "licences_certificates" in c],
-    "Assets": [c for c in df.columns if "assets_owned" in c or "asset_register" in c],
-    "Accounts": [c for c in df.columns if "records_maintained" in c or "financial_compliance" in c],
-    "Business": [c for c in df.columns if "business_lines" in c],
-    "Market": [c for c in df.columns if "market_linkages" in c],
-    "Processes": [c for c in df.columns if "business_processes" in c]
+    "FPO Registration":[col for col in df.columns if "fpo_registration-" in col],
+    "Membership":[col for col in df.columns if "fpo_membership-" in col],
+    "Governance":[col for col in df.columns if "strength_governanace" in col],
+    "FPO Staff":[col for col in df.columns if "fpo_staff_details" in col],
+    "Compliance":[col for col in df.columns if "licences_certificates" in col],
+    "Assets":[col for col in df.columns if "assets_owned" in col or "asset_register" in col],
+    "Accounts":[col for col in df.columns if "records_maintained" in col or "financial_compliance" in col],
+    "Business":[col for col in df.columns if "business_lines" in col],
+    "Market":[col for col in df.columns if "market_linkages" in col],
+    "Processes":[col for col in df.columns if "business_processes" in col]
 }
 
 # ==============================
@@ -157,168 +97,98 @@ sections = {
 # ==============================
 if "selected_section" not in st.session_state:
     st.session_state.selected_section = None
-
 if "selected_fpo" not in st.session_state:
     st.session_state.selected_fpo = ""
 
-if "action_plan_df" not in st.session_state:
-    st.session_state.action_plan_df = None
-
 # ==============================
-# FILTER DATA
+# FILTER
 # ==============================
 def get_df():
-    if not st.session_state.selected_fpo:
-        return df.copy()
-    return df[df["fpo_registration-fpo_name"].str.upper() == st.session_state.selected_fpo].copy()
+    if st.session_state.selected_fpo == "":
+        return df
+    return df[df["fpo_registration-fpo_name"] == st.session_state.selected_fpo]
 
 # ==============================
 # DASHBOARD
 # ==============================
 if st.session_state.selected_section is None:
 
-    show_header()
+    st.markdown('<div class="main-title-card"><h1>FPO Graduation Tool</h1></div>', unsafe_allow_html=True)
 
-    # 👉 UPPERCASE display
-    fpo_list = [""] + df["fpo_registration-fpo_name"].dropna().str.upper().unique().tolist()
-
-    selected = st.selectbox(
-        "Select FPO",
-        fpo_list,
-        index=fpo_list.index(st.session_state.selected_fpo)
-        if st.session_state.selected_fpo in fpo_list else 0
-    )
-
-    st.session_state.selected_fpo = selected
+    fpo_list = [""] + df["fpo_registration-fpo_name"].dropna().unique().tolist()
+    current_index = fpo_list.index(st.session_state.selected_fpo) if st.session_state.selected_fpo in fpo_list else 0
+    st.session_state.selected_fpo = st.selectbox("SELECT FPO", fpo_list, index=current_index)
 
     data = get_df()
+    cols_ui = st.columns(5)
     scores = []
 
-    aggregate = True if not st.session_state.selected_fpo else False
+    for i,(section,cols) in enumerate(sections.items()):
+        correct,total,percent = calculate_score(data, cols)
+        scores.append(percent)
+        label,color = maturity_label(percent)
 
-    section_items = list(sections.items())
-
-    for i in range(0, len(section_items), 5):
-        cols_ui = st.columns(5)
-
-        for j, (section, cols) in enumerate(section_items[i:i+5]):
-
-            correct, total, percent = calculate_score(data, cols, aggregate)
-            scores.append(percent)
-
-            label, color = maturity_label(percent)
-
-            with cols_ui[j]:
-                st.markdown(f"""
-                <div style="background:white;padding:15px;border-radius:12px;
-                            border:1px solid #ddd;box-shadow:2px 2px 6px #ccc;">
-                    <h4 style="color:#0073e6;">{section}</h4>
-                    <p>Score: <b>{correct}/{total}</b></p>
-                    <p style="color:{color};">Maturity: {percent}% - {label}</p>
-                    <div style="background:#eee;height:10px;border-radius:6px;">
-                        <div style="width:{percent}%;background:{color};height:10px;"></div>
-                    </div>
+        with cols_ui[i % 5]:
+            st.markdown(f"""
+            <div class="section-card">
+                <div class="section-title">{section}</div>
+                <div class="section-score">{correct}/{total}</div>
+                <div class="section-percent" style="color:{color};">{percent}% - {label}</div>
+                <div class="progress-container">
+                    <div class="progress-bar" style="width:{percent}%; background-color:{color};"></div>
                 </div>
-                """, unsafe_allow_html=True)
+            </div>
+            """, unsafe_allow_html=True)
 
-                if st.button("View details", key=section):
-                    st.session_state.selected_section = section
-                    st.session_state.action_plan_df = None
+            if st.button("View details", key=f"view_{section}"):
+                st.session_state.selected_section = section
 
-    overall = int(sum(scores) / len(scores)) if scores else 0
-
+    overall = int(sum(scores)/len(scores))
     st.markdown(f"""
-    <div style="background:#0073e6;color:white;padding:15px;
-                border-radius:10px;text-align:center;">
-        <h3>Overall Maturity : {overall}%</h3>
+    <div class="overall-card">
+    Overall Maturity : {overall}%
     </div>
     """, unsafe_allow_html=True)
 
 # ==============================
-# DETAIL PAGE
+# DETAIL PAGE (UPDATED)
 # ==============================
 else:
-
-    show_header()
-
     section = st.session_state.selected_section
-    st.markdown(f"<h2 style='color:#0073e6;'>{section}</h2>", unsafe_allow_html=True)
+    st.markdown(f'<div class="main-title-card"><h1>{section}</h1></div>', unsafe_allow_html=True)
 
-    # 👉 NEW CONDITION
-    if not st.session_state.selected_fpo:
-        st.warning("Select FPO to view details")
+    data = get_df()
+    cols = sections[section]
 
+    correct_list, wrong_list = [], []
+    for col in cols:
+        if col in data.columns and col in mature_map:
+            expected = mature_map[col]
+            if (data[col] == expected).all():
+                correct_list.append(col)
+            else:
+                wrong_list.append(col)
+
+    # ==========================
+    # ONLY TWO SECTIONS
+    # ==========================
+
+    st.markdown("## Benchmarks Met")
+    if correct_list:
+        for q in correct_list:
+            st.write(f"✅ {q}")
     else:
-        st.markdown(f"**Selected FPO:** {st.session_state.selected_fpo}")
+        st.write("No benchmarks met")
 
-        data = get_df()
-        cols = sections[section]
+    st.markdown("---")
 
-        tab_choice = st.radio(
-            "Select View",
-            ["Benchmarks Met", "Areas of Improvement", "Action Plan"],
-            horizontal=True
-        )
+    st.markdown("## Areas of Improvement")
+    if wrong_list:
+        for q in wrong_list:
+            st.write(f"⚠️ {q}")
+    else:
+        st.write("No improvements needed 🎉")
 
-        if tab_choice == "Benchmarks Met":
-            for col in cols:
-                l = get_label(col)
-                if col in data.columns:
-                    expected = 1 if col.startswith("fpo_registration-") else safe_binary(mature_map.get(col))
-                    if safe_binary(data.iloc[0][col]) == expected:
-                        st.success(l.get("message", ""))
-
-        elif tab_choice == "Areas of Improvement":
-            for col in cols:
-                l = get_label(col)
-                if col in data.columns:
-                    expected = 1 if col.startswith("fpo_registration-") else safe_binary(mature_map.get(col))
-                    if safe_binary(data.iloc[0][col]) != expected:
-                        st.warning(l.get("message", ""))
-
-        elif tab_choice == "Action Plan":
-
-            sub1, sub2 = st.tabs(["Action Plan", "How to Do"])
-
-            with sub1:
-                default_date = date(date.today().year, 4, 1)
-
-                table_data = []
-                for col in cols:
-                    l = get_label(col)
-                    if not l:
-                        continue
-
-                    table_data.append({
-                        "Indicator": l.get("message", ""),
-                        "Action": l.get("action plan", ""),
-                        "Primary Responsibility": l.get("primary responsibility", ""),
-                        "Supported By": l.get("supported by", ""),
-                        "Monitored By": l.get("monitored by", ""),
-                        "Timeline": default_date
-                    })
-
-                df_table = pd.DataFrame(table_data)
-
-                if st.session_state.action_plan_df is None:
-                    st.session_state.action_plan_df = df_table
-
-                edited_df = st.data_editor(
-                    st.session_state.action_plan_df,
-                    column_config={
-                        "Timeline": st.column_config.DateColumn("Timeline")
-                    },
-                    use_container_width=True
-                )
-
-                st.session_state.action_plan_df = edited_df
-
-            with sub2:
-                for col in cols:
-                    l = get_label(col)
-                    if not l:
-                        continue
-                    st.info(l.get("how to do", ""))
-
+    # BACK BUTTON
     if st.button("⬅️ Back"):
         st.session_state.selected_section = None
